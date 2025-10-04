@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Asteroid, calculateImpactEffects } from '@/services/asteroidApi';
-import { Flame, Waves, Activity, Target, Zap, AlertTriangle } from 'lucide-react';
+import { Flame, Waves, Activity, Target, Zap, AlertTriangle, Rocket } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { TargetingMap } from './TargetingMap';
+import { ImpactRadar } from './ImpactRadar';
 
 interface SimulationModalProps {
   asteroid: Asteroid | null;
@@ -9,9 +13,85 @@ interface SimulationModalProps {
 }
 
 export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalProps) => {
+  const [simulationPhase, setSimulationPhase] = useState<'preview' | 'targeting' | 'impact'>('preview');
+  const [targetLocation, setTargetLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapboxToken, setMapboxToken] = useState('');
+  
   if (!asteroid) return null;
 
-  const effects = calculateImpactEffects(asteroid);
+  const effects = calculateImpactEffects(asteroid, targetLocation || undefined);
+
+  const handleLaunch = () => {
+    setSimulationPhase('targeting');
+  };
+
+  const handleTargetSelected = (location: { lat: number; lng: number }) => {
+    setTargetLocation(location);
+    setSimulationPhase('impact');
+  };
+
+  const handleClose = () => {
+    setSimulationPhase('preview');
+    setTargetLocation(null);
+    onClose();
+  };
+
+  // Show targeting map
+  if (simulationPhase === 'targeting') {
+    return (
+      <TargetingMap
+        onTargetSelected={handleTargetSelected}
+        onCancel={handleClose}
+      />
+    );
+  }
+
+  // Show impact radar
+  if (simulationPhase === 'impact' && targetLocation && mapboxToken) {
+    return (
+      <ImpactRadar
+        asteroid={asteroid}
+        targetLocation={targetLocation}
+        effects={effects}
+        mapboxToken={mapboxToken}
+        onClose={handleClose}
+      />
+    );
+  }
+
+  // Show preview with launch button
+  if (simulationPhase === 'impact' && targetLocation && !mapboxToken) {
+    // Need API key for radar view
+    return (
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="max-w-md panel border-2 border-primary/50">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-primary">Mapbox API Key Required</DialogTitle>
+            <DialogDescription>
+              Enter your Mapbox token to view the impact radar visualization
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="pk.eyJ1..."
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg"
+              value={mapboxToken}
+              onChange={(e) => setMapboxToken(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={() => setSimulationPhase('impact')} disabled={!mapboxToken} className="flex-1">
+                Continue
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -123,6 +203,15 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
               location, composition, and many other factors.
             </p>
           </div>
+
+          {/* Launch Button */}
+          <Button
+            onClick={handleLaunch}
+            className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground text-lg py-6 glow-secondary"
+          >
+            <Rocket className="w-5 h-5 mr-2" />
+            Launch Impact Simulation
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

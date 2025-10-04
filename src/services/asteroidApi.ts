@@ -125,15 +125,82 @@ export const fetchNearEarthAsteroids = async (): Promise<Asteroid[]> => {
   }
 };
 
-export const calculateImpactEffects = (asteroid: Asteroid) => {
+export const calculateImpactEffects = (asteroid: Asteroid, targetLocation?: { lat: number; lng: number }) => {
   const energy = (0.5 * (asteroid.diameter_km ** 3) * (asteroid.velocity_kmh / 3600) ** 2) / 1000;
+  const craterDiameter = asteroid.diameter_km * 20;
+  const craterDepth = craterDiameter * 0.3;
+  const fireballRadius = asteroid.diameter_km * 5;
+  const shockwaveRadius = asteroid.diameter_km * 50;
+  const windBlastRadius = asteroid.diameter_km * 40;
+  const earthquakeRadius = asteroid.diameter_km * 100;
+  
+  // Calculate casualties based on radius and rough population density (if location provided)
+  const populationDensity = 100; // people per km²
+  const craterArea = Math.PI * (craterDiameter / 2) ** 2;
+  const fireballArea = Math.PI * fireballRadius ** 2;
+  const shockwaveArea = Math.PI * shockwaveRadius ** 2;
+  const windBlastArea = Math.PI * windBlastRadius ** 2;
+  
+  const craterCasualties = Math.floor(craterArea * populationDensity);
+  const fireballDeaths = Math.floor((fireballArea - craterArea) * populationDensity * 0.9);
+  const fireball3rdBurns = Math.floor(fireballArea * populationDensity * 0.05);
+  const fireball2ndBurns = Math.floor(fireballArea * populationDensity * 0.1);
+  const shockwaveDeaths = Math.floor((shockwaveArea - fireballArea) * populationDensity * 0.3);
+  const windBlastDeaths = Math.floor((windBlastArea - fireballArea) * populationDensity * 0.25);
+  const earthquakeDeaths = Math.floor(earthquakeRadius * populationDensity * 0.01);
+  
+  const windSpeed = Math.min(asteroid.velocity_kmh * 0.1, 15000);
+  const shockwaveDecibels = Math.min(200 + Math.log10(energy) * 10, 250);
+  const earthquakeMagnitude = Math.min(5 + Math.log10(energy), 10);
+  const impactSpeed = asteroid.velocity_kmh * 0.95;
+  const averageYears = Math.max(Math.floor(energy * 15000), 1000);
   
   return {
+    // Basic metrics
     energy_megatons: energy.toFixed(2),
-    crater_diameter_km: (asteroid.diameter_km * 20).toFixed(2),
-    fireball_radius_km: (asteroid.diameter_km * 5).toFixed(2),
-    shockwave_radius_km: (asteroid.diameter_km * 50).toFixed(2),
-    earthquake_magnitude: Math.min(5 + Math.log10(energy), 10).toFixed(1),
+    impact_speed_mph: (impactSpeed * 0.621371).toFixed(0),
+    average_occurrence_years: averageYears.toLocaleString(),
+    
+    // Crater
+    crater_diameter_km: craterDiameter.toFixed(2),
+    crater_diameter_miles: (craterDiameter * 0.621371).toFixed(1),
+    crater_depth_ft: (craterDepth * 3280.84).toFixed(0),
+    crater_casualties: craterCasualties.toLocaleString(),
+    
+    // Fireball
+    fireball_radius_km: fireballRadius.toFixed(2),
+    fireball_radius_miles: (fireballRadius * 0.621371).toFixed(1),
+    fireball_deaths: fireballDeaths.toLocaleString(),
+    fireball_3rd_degree_burns: fireball3rdBurns.toLocaleString(),
+    fireball_2nd_degree_burns: fireball2ndBurns.toLocaleString(),
+    fireball_tree_ignition_miles: (fireballRadius * 0.8 * 0.621371).toFixed(0),
+    
+    // Shock wave
+    shockwave_radius_km: shockwaveRadius.toFixed(2),
+    shockwave_radius_miles: (shockwaveRadius * 0.621371).toFixed(1),
+    shockwave_decibels: shockwaveDecibels.toFixed(0),
+    shockwave_deaths: shockwaveDeaths.toLocaleString(),
+    shockwave_lung_damage_miles: (shockwaveRadius * 0.3 * 0.621371).toFixed(0),
+    shockwave_eardrum_rupture_miles: (shockwaveRadius * 0.4 * 0.621371).toFixed(0),
+    shockwave_building_collapse_miles: (shockwaveRadius * 0.7 * 0.621371).toFixed(0),
+    shockwave_home_collapse_miles: (shockwaveRadius * 0.9 * 0.621371).toFixed(0),
+    
+    // Wind blast
+    wind_blast_radius_km: windBlastRadius.toFixed(2),
+    wind_blast_radius_miles: (windBlastRadius * 0.621371).toFixed(1),
+    wind_peak_speed_mph: (windSpeed * 0.621371).toFixed(0),
+    wind_deaths: windBlastDeaths.toLocaleString(),
+    wind_jupiter_storm_miles: (windBlastRadius * 0.2 * 0.621371).toFixed(0),
+    wind_complete_level_miles: (windBlastRadius * 0.35 * 0.621371).toFixed(0),
+    wind_ef5_tornado_miles: (windBlastRadius * 0.6 * 0.621371).toFixed(0),
+    wind_trees_down_miles: (windBlastRadius * 0.621371).toFixed(0),
+    
+    // Earthquake
+    earthquake_magnitude: earthquakeMagnitude.toFixed(1),
+    earthquake_deaths: earthquakeDeaths.toLocaleString(),
+    earthquake_felt_miles: (earthquakeRadius * 0.621371).toFixed(0),
+    
+    // Tsunami
     tsunami_height_m: asteroid.diameter_km > 0.5 ? (asteroid.diameter_km * 10).toFixed(1) : '0',
   };
 };
