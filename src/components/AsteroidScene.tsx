@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useRef, useState } from 'react';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, Sphere, Stars } from '@react-three/drei';
 import * as THREE from 'three';
 import { Asteroid } from '@/services/asteroidApi';
@@ -12,6 +12,7 @@ interface AsteroidSceneProps {
 
 const Earth = () => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const earthTexture = useLoader(THREE.TextureLoader, '/textures/earth_texture.jpg');
 
   useFrame(() => {
     if (meshRef.current) {
@@ -22,11 +23,11 @@ const Earth = () => {
   return (
     <Sphere ref={meshRef} args={[1, 64, 64]} position={[0, 0, 0]}>
       <meshStandardMaterial
-        color="#1e40af"
+        map={earthTexture}
         emissive="#1e3a8a"
-        emissiveIntensity={0.2}
-        roughness={0.7}
-        metalness={0.1}
+        emissiveIntensity={0.1}
+        roughness={0.8}
+        metalness={0.05}
       />
     </Sphere>
   );
@@ -43,6 +44,7 @@ const AsteroidMesh = ({
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  const asteroidTexture = useLoader(THREE.TextureLoader, '/textures/asteroid_texture.jpg');
 
   useFrame(() => {
     if (meshRef.current) {
@@ -79,6 +81,7 @@ const AsteroidMesh = ({
     >
       <meshStandardMaterial
         color={color}
+        map={asteroidTexture}
         emissive={emissive}
         emissiveIntensity={hovered ? 1 : 0.5}
         roughness={0.9}

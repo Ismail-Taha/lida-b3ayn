@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button';
 import { Target, AlertTriangle } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 interface TargetingMapProps {
@@ -13,36 +12,24 @@ interface TargetingMapProps {
 
 export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [isMapReady, setIsMapReady] = useState(false);
+  const map = useRef<maplibregl.Map | null>(null);
+  const marker = useRef<maplibregl.Marker | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || !apiKey) return;
+    if (!mapContainer.current) return;
 
     try {
-      mapboxgl.accessToken = apiKey;
-      
-      map.current = new mapboxgl.Map({
+      map.current = new maplibregl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
         projection: 'globe',
         zoom: 2,
         center: [0, 20],
       });
 
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      
-      map.current.on('load', () => {
-        setIsMapReady(true);
-        map.current?.setFog({
-          color: 'rgb(10, 10, 20)',
-          'high-color': 'rgb(20, 20, 40)',
-          'horizon-blend': 0.1,
-        });
-      });
+      map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+      map.current.getCanvas().style.cursor = 'pointer';
 
       map.current.on('click', (e) => {
         const { lng, lat } = e.lngLat;
@@ -64,7 +51,7 @@ export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) 
         el.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.8), 0 0 40px rgba(239, 68, 68, 0.4)';
         el.style.animation = 'pulse 2s infinite';
 
-        marker.current = new mapboxgl.Marker(el)
+        marker.current = new maplibregl.Marker(el)
           .setLngLat([lng, lat])
           .addTo(map.current!);
 
@@ -73,13 +60,13 @@ export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) 
 
     } catch (error) {
       console.error('Map initialization error:', error);
-      toast.error('Failed to initialize map. Please check your API key.');
+      toast.error('Failed to initialize map.');
     }
 
     return () => {
       map.current?.remove();
     };
-  }, [apiKey]);
+  }, []);
 
   const handleHit = () => {
     if (selectedLocation) {
@@ -118,31 +105,6 @@ export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) 
             </div>
           </div>
         </div>
-
-        {/* API Key Input (if not set) */}
-        {!apiKey && (
-          <div className="panel mx-4 mb-4 p-6 rounded-lg border-2 border-primary/50">
-            <div className="max-w-2xl mx-auto text-center">
-              <h3 className="text-xl font-semibold text-primary mb-3">Mapbox API Key Required</h3>
-              <p className="text-muted-foreground mb-4">
-                To use the targeting map, please enter your Mapbox public token.
-                Get one free at <a href="https://mapbox.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">mapbox.com</a>
-              </p>
-              <div className="flex gap-2 max-w-md mx-auto">
-                <Input
-                  type="text"
-                  placeholder="pk.eyJ1..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={() => apiKey && toast.success('API key set! Map loading...')}>
-                  Load Map
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Map Container */}
         <div className="flex-1 mx-4 mb-4 rounded-lg overflow-hidden border-2 border-border panel relative">
