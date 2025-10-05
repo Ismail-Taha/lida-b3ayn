@@ -1,15 +1,59 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Feature, Polygon } from 'geojson';
+import type { Feature, Polygon, FeatureCollection } from 'geojson';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Asteroid, type ImpactEffects } from '@/services/asteroidApi';
+import { Asteroid, type ImpactEffects, estimatePopulationDensity } from '@/services/asteroidApi';
 import { 
   Target, Flame, Activity, Wind, Waves, 
   Building, Users, Skull, X 
 } from 'lucide-react';
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const generatePopulationOverlay = (centerLat: number, centerLng: number): FeatureCollection<Polygon> => {
+  const features: Feature<Polygon>[] = [];
+  const stepDegrees = 0.6;
+  const cellsPerSide = 8;
+  const half = cellsPerSide / 2;
+
+  for (let ix = -half; ix < half; ix++) {
+    for (let iy = -half; iy < half; iy++) {
+      const lat0 = centerLat + ix * stepDegrees;
+      const lng0 = centerLng + iy * stepDegrees;
+      const lat1 = lat0 + stepDegrees;
+      const lng1 = lng0 + stepDegrees;
+
+      const densitySampleLat = lat0 + stepDegrees / 2;
+      const densitySampleLng = lng0 + stepDegrees / 2;
+      const density = estimatePopulationDensity(densitySampleLat, densitySampleLng);
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          density,
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [lng0, lat0],
+            [lng1, lat0],
+            [lng1, lat1],
+            [lng0, lat1],
+            [lng0, lat0],
+          ]],
+        },
+      });
+    }
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+};
 
 interface ImpactRadarProps {
   asteroid: Asteroid;
@@ -45,6 +89,54 @@ export const ImpactRadar = ({
 
       const circleIds = ['crater', 'fireball', 'shockwave', 'wind', 'earthquake'] as const;
 
+      const impactAngleDeg = asteroid.impact_angle_deg ?? 45;
+      const impactAzimuthDeg = asteroid.impact_azimuth_deg ?? 0;
+      const angleRad = (impactAngleDeg * Math.PI) / 180;
+      const azimuthRad = (impactAzimuthDeg * Math.PI) / 180;
+      const latRad = (targetLat * Math.PI) / 180;
+      const baseAxisRatio = clamp(1 / Math.max(Math.sin(angleRad), 0.2), 1, 4);
+
+      const populationData = generatePopulationOverlay(targetLat, targetLng);
+      const populationSource = map.current.getSource('population-overlay') as maplibregl.GeoJSONSource | undefined;
+      if (populationSource) {
+        populationSource.setData(populationData);
+      } else {
+        map.current.addSource('population-overlay', {
+          type: 'geojson',
+          data: populationData,
+        });
+
+        const beforeId = map.current.getLayer('crater') ? 'crater' : undefined;
+        map.current.addLayer(
+          {
+            id: 'population-overlay-fill',
+            type: 'fill',
+            source: 'population-overlay',
+            paint: {
+              'fill-color': [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'density'], 0],
+                0,
+                'rgba(156, 163, 175, 0.05)',
+                500,
+                'rgba(148, 163, 184, 0.12)',
+                2000,
+                'rgba(107, 114, 128, 0.22)',
+                8000,
+                'rgba(75, 85, 99, 0.32)',
+                15000,
+                'rgba(55, 65, 81, 0.42)',
+                25000,
+                'rgba(31, 41, 55, 0.55)',
+              ],
+              'fill-opacity': 1,
+            },
+          },
+          beforeId
+        );
+      }
+
       circleIds.forEach((id) => {
         const outlineId = `${id}-outline`;
         if (map.current?.getLayer(outlineId)) {
@@ -65,13 +157,20 @@ export const ImpactRadar = ({
         const points = 64;
         const coordinates: [number, number][] = [];
 
+        const layerBlend = id === 'crater' ? 0.35 : id === 'fireball' ? 0.55 : id === 'shockwave' ? 0.75 : id === 'wind' ? 0.9 : 0.6;
+        const axisRatio = 1 + (baseAxisRatio - 1) * layerBlend;
+        const majorRadius = radiusInMeters * axisRatio;
+        const minorRadius = radiusInMeters / axisRatio;
+
         for (let i = 0; i < points; i++) {
           const angle = (i / points) * Math.PI * 2;
-          const dx = radiusInMeters * Math.cos(angle);
-          const dy = radiusInMeters * Math.sin(angle);
+          const localX = majorRadius * Math.cos(angle);
+          const localY = minorRadius * Math.sin(angle);
+          const rotatedX = localX * Math.cos(azimuthRad) - localY * Math.sin(azimuthRad);
+          const rotatedY = localX * Math.sin(azimuthRad) + localY * Math.cos(azimuthRad);
 
-          const lat = targetLat + dy / 111320;
-          const lng = targetLng + dx / (111320 * Math.cos((targetLat * Math.PI) / 180));
+          const lat = targetLat + rotatedY / 111320;
+          const lng = targetLng + rotatedX / (111320 * Math.cos(latRad));
 
           coordinates.push([lng, lat]);
         }
@@ -129,7 +228,7 @@ export const ImpactRadar = ({
       createCircle('fireball', Number(effects.fireball_radius_km), '#f97316', 0.3);
       createCircle('crater', Number(effects.crater_diameter_km) / 2, '#ef4444', 0.5);
     };
-  }, [activeRadar, effects, targetLat, targetLng]);
+  }, [activeRadar, asteroid.impact_angle_deg, asteroid.impact_azimuth_deg, effects, targetLat, targetLng]);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -147,6 +246,11 @@ export const ImpactRadar = ({
     mapInstance.getCanvas().style.cursor = 'pointer';
 
     mapInstance.on('load', () => {
+      try {
+        mapInstance.setPaintProperty('background', 'background-color', '#111827');
+      } catch (error) {
+        console.warn('Unable to tint base map background', error);
+      }
       setTimeout(() => setShowExplosion(true), 500);
       updateRadarCirclesRef.current();
     });
@@ -161,7 +265,7 @@ export const ImpactRadar = ({
     if (map.current?.isStyleLoaded()) {
       updateRadarCirclesRef.current();
     }
-  }, [activeRadar, effects, targetLat, targetLng]);
+  }, [activeRadar, asteroid.impact_angle_deg, asteroid.impact_azimuth_deg, effects, targetLat, targetLng]);
 
   const radarSections = [
     {
@@ -195,6 +299,7 @@ export const ImpactRadar = ({
       color: 'text-blue-500',
       data: [
         { label: `${effects.shockwave_decibels} decibel shock wave`, highlight: true },
+        { label: `${effects.estimated_population_exposed} people within blast footprint`, highlight: true },
         { label: `${effects.shockwave_deaths} people would die from the shock wave` },
         { label: `Lung damage within ${effects.shockwave_lung_damage_miles} miles` },
         { label: `Ruptured eardrums within ${effects.shockwave_eardrum_rupture_miles} miles` },
@@ -261,6 +366,15 @@ export const ImpactRadar = ({
             </p>
             <p className="text-foreground">
               <span className="text-muted-foreground">Energy:</span> {effects.energy_megatons} Gigatons TNT
+            </p>
+            <p className="text-foreground">
+              <span className="text-muted-foreground">Entry Angle:</span> {(asteroid.impact_angle_deg ?? 45).toFixed(0)}°
+            </p>
+            <p className="text-foreground">
+              <span className="text-muted-foreground">Local Density:</span> {Number(effects.local_population_density_per_km2).toLocaleString()} people/km²
+            </p>
+            <p className="text-foreground">
+              <span className="text-muted-foreground">Population Exposed:</span> {effects.estimated_population_exposed}
             </p>
             <p className="text-foreground">
               <span className="text-muted-foreground">Frequency:</span> Every {effects.average_occurrence_years} years

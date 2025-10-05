@@ -20,6 +20,8 @@ const getVisualScale = (diameterKm: number) => {
   return clamp(0.12 + normalized * 0.45, 0.12, 0.7);
 };
 
+const AU_TO_SCENE_UNITS = 3.2;
+
 interface OrbitParameters {
   majorAxis: THREE.Vector3;
   minorAxis: THREE.Vector3;
@@ -30,6 +32,29 @@ interface OrbitParameters {
 }
 
 const generateOrbitParameters = (asteroid: Asteroid): OrbitParameters | null => {
+  if (asteroid.orbit_p_vector && asteroid.orbit_q_vector && asteroid.semi_major_axis_au) {
+    const majorAxis = new THREE.Vector3(...asteroid.orbit_p_vector).normalize();
+    let minorAxis = new THREE.Vector3(...asteroid.orbit_q_vector).normalize();
+
+    if (majorAxis.lengthSq() === 0) {
+      return null;
+    }
+
+    const orthogonalComponent = minorAxis
+      .clone()
+      .sub(majorAxis.clone().multiplyScalar(minorAxis.dot(majorAxis)));
+    if (orthogonalComponent.lengthSq() > 0) {
+      minorAxis = orthogonalComponent.normalize();
+    }
+
+    const eccentricity = clamp(asteroid.orbital_eccentricity ?? 0.2, 0.02, 0.9);
+    const semiMajor = clamp(asteroid.semi_major_axis_au * AU_TO_SCENE_UNITS, 0.6, 14);
+    const semiMinor = semiMajor * Math.sqrt(Math.max(0.0001, 1 - eccentricity * eccentricity));
+    const angle = asteroid.true_anomaly_rad ?? 0;
+
+    return { majorAxis, minorAxis, semiMajor, semiMinor, eccentricity, angle };
+  }
+
   const direction = new THREE.Vector3(asteroid.x, asteroid.y, asteroid.z);
   if (direction.lengthSq() === 0) return null;
 

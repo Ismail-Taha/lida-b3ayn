@@ -35,12 +35,10 @@ export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) 
         const { lng, lat } = e.lngLat;
         setSelectedLocation({ lat, lng });
 
-        // Remove existing marker
         if (marker.current) {
           marker.current.remove();
         }
 
-        // Add new marker with custom styling
         const el = document.createElement('div');
         el.className = 'targeting-marker';
         el.style.width = '30px';
@@ -57,7 +55,6 @@ export const TargetingMap = ({ onTargetSelected, onCancel }: TargetingMapProps) 
 
         toast.success(`Target selected: ${lat.toFixed(4)}°, ${lng.toFixed(4)}°`);
       });
-
     } catch (error) {
       console.error('Map initialization error:', error);
       toast.error('Failed to initialize map.');

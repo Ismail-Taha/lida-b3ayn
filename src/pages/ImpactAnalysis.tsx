@@ -1,6 +1,6 @@
 import { useMemo, type ElementType } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Calculator, Flame, Activity, Waves, Target, Zap, Users, Brain } from "lucide-react";
+import { ArrowLeft, Calculator, Flame, Activity, Waves, Target, Zap, Users, Brain, Compass } from "lucide-react";
 import spaceBackground from "@/assets/space-background.jpg";
 
 interface AnalysisSection {
@@ -30,6 +30,25 @@ const ImpactAnalysis = () => {
             label: "Momentum",
             expression: "p = m v",
             notes: "Momentum helps estimate impulse transferred to the crust and atmosphere."
+          }
+        ]
+      },
+      {
+        title: "Oblique Entry Geometry",
+        icon: Compass,
+        focus: "Angle-dependent footprint",
+        summary:
+          "Atmospheric entry rarely occurs straight down. The ratio between vertical and horizontal velocity controls both the impact angle and the elongated blast footprint we render on the radar.",
+        formulae: [
+          {
+            label: "Entry Angle",
+            expression: "θ = arctan(v_vertical / v_horizontal)",
+            notes: "v_vertical derives from orbital inclination, while v_horizontal lies in Earth’s local tangent plane."
+          },
+          {
+            label: "Footprint Axis Ratio",
+            expression: "a/b ≈ 1 / sin θ",
+            notes: "Lower entry angles (small θ) stretch blast effects downrange, matching the elliptical overlays in the radar."
           }
         ]
       },
