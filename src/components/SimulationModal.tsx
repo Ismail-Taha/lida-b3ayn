@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Asteroid, calculateImpactEffects } from '@/services/asteroidApi';
-import { Flame, Waves, Activity, Target, Zap, AlertTriangle, Rocket } from 'lucide-react';
+import { Flame, Waves, Activity, Target, Zap, Rocket, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TargetingMap } from './TargetingMap';
 import { ImpactRadar } from './ImpactRadar';
@@ -62,7 +62,7 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
       <DialogContent className="max-w-2xl panel border-2 border-primary/50 glow-primary">
         <DialogHeader>
           <DialogTitle className="text-2xl text-primary text-glow flex items-center gap-2">
-            <AlertTriangle className="w-6 h-6 animate-pulse-glow" />
+            <Globe className="w-6 h-6 animate-pulse-glow" />
             Impact Simulation: {asteroid.name}
           </DialogTitle>
           <DialogDescription className="text-foreground/80">
@@ -90,10 +90,8 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
                 </p>
               </div>
               <div>
-                <span className="text-muted-foreground text-sm">Threat Level</span>
-                <p className={`font-bold ${asteroid.is_potentially_hazardous ? 'text-destructive' : 'text-accent'}`}>
-                  {asteroid.is_potentially_hazardous ? 'HIGH' : 'MODERATE'}
-                </p>
+                <span className="text-muted-foreground text-sm">Absolute Magnitude</span>
+                <p className="text-foreground font-bold">{asteroid.absolute_magnitude.toFixed(2)} H</p>
               </div>
             </div>
           </div>

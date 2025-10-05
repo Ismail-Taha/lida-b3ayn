@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Feature, Polygon } from 'geojson';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Asteroid } from '@/services/asteroidApi';
+import { Asteroid, type ImpactEffects } from '@/services/asteroidApi';
 import { 
   Target, Flame, Activity, Wind, Waves, 
   Building, Users, Skull, X 
@@ -13,7 +14,7 @@ import {
 interface ImpactRadarProps {
   asteroid: Asteroid;
   targetLocation: { lat: number; lng: number };
-  effects: any;
+  effects: ImpactEffects;
   onClose: () => void;
 }
 
@@ -25,6 +26,7 @@ export const ImpactRadar = ({
 }: ImpactRadarProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const updateRadarCirclesRef = useRef<() => void>(() => {});
   const [showExplosion, setShowExplosion] = useState(false);
   const [activeRadar, setActiveRadar] = useState({
     crater: true,
@@ -34,126 +36,132 @@ export const ImpactRadar = ({
     earthquake: false,
   });
 
+  const targetLat = targetLocation.lat;
+  const targetLng = targetLocation.lng;
+
+  useEffect(() => {
+    updateRadarCirclesRef.current = () => {
+      if (!map.current) return;
+
+      const circleIds = ['crater', 'fireball', 'shockwave', 'wind', 'earthquake'] as const;
+
+      circleIds.forEach((id) => {
+        const outlineId = `${id}-outline`;
+        if (map.current?.getLayer(outlineId)) {
+          map.current.removeLayer(outlineId);
+        }
+        if (map.current?.getLayer(id)) {
+          map.current.removeLayer(id);
+        }
+        if (map.current?.getSource(id)) {
+          map.current.removeSource(id);
+        }
+      });
+
+      const createCircle = (id: (typeof circleIds)[number], radiusKm: number, color: string, opacity: number) => {
+        if (!activeRadar[id]) return;
+
+        const radiusInMeters = radiusKm * 1000;
+        const points = 64;
+        const coordinates: [number, number][] = [];
+
+        for (let i = 0; i < points; i++) {
+          const angle = (i / points) * Math.PI * 2;
+          const dx = radiusInMeters * Math.cos(angle);
+          const dy = radiusInMeters * Math.sin(angle);
+
+          const lat = targetLat + dy / 111320;
+          const lng = targetLng + dx / (111320 * Math.cos((targetLat * Math.PI) / 180));
+
+          coordinates.push([lng, lat]);
+        }
+        coordinates.push(coordinates[0]);
+
+        const data: Feature<Polygon> = {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [coordinates],
+          },
+        };
+
+        const existingSource = map.current?.getSource(id) as maplibregl.GeoJSONSource | undefined;
+
+        if (existingSource) {
+          existingSource.setData(data);
+        } else {
+          map.current?.addSource(id, {
+            type: 'geojson',
+            data,
+          });
+        }
+
+        if (!map.current?.getLayer(id)) {
+          map.current?.addLayer({
+            id,
+            type: 'fill',
+            source: id,
+            paint: {
+              'fill-color': color,
+              'fill-opacity': opacity,
+            },
+          });
+        }
+
+        const outlineId = `${id}-outline`;
+        if (!map.current?.getLayer(outlineId)) {
+          map.current?.addLayer({
+            id: outlineId,
+            type: 'line',
+            source: id,
+            paint: {
+              'line-color': color,
+              'line-width': 2,
+            },
+          });
+        }
+      };
+
+      createCircle('earthquake', Number(effects.earthquake_felt_miles) * 1.60934, '#a855f7', 0.1);
+      createCircle('wind', Number(effects.wind_blast_radius_km), '#fbbf24', 0.15);
+      createCircle('shockwave', Number(effects.shockwave_radius_km), '#3b82f6', 0.2);
+      createCircle('fireball', Number(effects.fireball_radius_km), '#f97316', 0.3);
+      createCircle('crater', Number(effects.crater_diameter_km) / 2, '#ef4444', 0.5);
+    };
+  }, [activeRadar, effects, targetLat, targetLng]);
+
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    map.current = new maplibregl.Map({
+    const mapInstance = new maplibregl.Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-      center: [targetLocation.lng, targetLocation.lat],
+      center: [targetLng, targetLat],
       zoom: 8,
     });
 
-    map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-    map.current.getCanvas().style.cursor = 'pointer';
+    map.current = mapInstance;
 
-    map.current.on('load', () => {
-      // Trigger explosion animation
+    mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
+    mapInstance.getCanvas().style.cursor = 'pointer';
+
+    mapInstance.on('load', () => {
       setTimeout(() => setShowExplosion(true), 500);
-      
-      updateRadarCircles();
+      updateRadarCirclesRef.current();
     });
 
     return () => {
-      map.current?.remove();
+      mapInstance.remove();
+      map.current = null;
     };
-  }, []);
+  }, [targetLat, targetLng]);
 
   useEffect(() => {
     if (map.current?.isStyleLoaded()) {
-      updateRadarCircles();
+      updateRadarCirclesRef.current();
     }
-  }, [activeRadar]);
-
-  const updateRadarCircles = () => {
-    if (!map.current) return;
-
-    const circleIds = ['crater', 'fireball', 'shockwave', 'wind', 'earthquake'];
-
-    circleIds.forEach((id) => {
-      const outlineId = `${id}-outline`;
-      if (map.current?.getLayer(outlineId)) {
-        map.current.removeLayer(outlineId);
-      }
-      if (map.current?.getLayer(id)) {
-        map.current.removeLayer(id);
-      }
-      if (map.current?.getSource(id)) {
-        map.current.removeSource(id);
-      }
-    });
-
-    const createCircle = (id: string, radius_km: number, color: string, opacity: number) => {
-      if (!activeRadar[id as keyof typeof activeRadar]) return;
-
-      const radiusInMeters = radius_km * 1000;
-      const points = 64;
-      const coordinates = [];
-      
-      for (let i = 0; i < points; i++) {
-        const angle = (i / points) * Math.PI * 2;
-        const dx = radiusInMeters * Math.cos(angle);
-        const dy = radiusInMeters * Math.sin(angle);
-        
-        const lat = targetLocation.lat + (dy / 111320);
-        const lng = targetLocation.lng + (dx / (111320 * Math.cos(targetLocation.lat * Math.PI / 180)));
-        
-        coordinates.push([lng, lat]);
-      }
-      coordinates.push(coordinates[0]);
-
-      const data = {
-        type: 'Feature' as const,
-        properties: {},
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [coordinates],
-        },
-      };
-
-      const existingSource = map.current?.getSource(id) as maplibregl.GeoJSONSource | undefined;
-
-      if (existingSource) {
-        existingSource.setData(data);
-      } else {
-        map.current?.addSource(id, {
-          type: 'geojson',
-          data,
-        });
-      }
-
-      if (!map.current?.getLayer(id)) {
-        map.current?.addLayer({
-          id,
-          type: 'fill',
-          source: id,
-          paint: {
-            'fill-color': color,
-            'fill-opacity': opacity,
-          },
-        });
-      }
-
-      const outlineId = `${id}-outline`;
-      if (!map.current?.getLayer(outlineId)) {
-        map.current?.addLayer({
-          id: outlineId,
-          type: 'line',
-          source: id,
-          paint: {
-            'line-color': color,
-            'line-width': 2,
-          },
-        });
-      }
-    };
-
-    createCircle('earthquake', parseFloat(effects.earthquake_felt_miles) * 1.60934, '#a855f7', 0.1);
-    createCircle('wind', parseFloat(effects.wind_blast_radius_km), '#fbbf24', 0.15);
-    createCircle('shockwave', parseFloat(effects.shockwave_radius_km), '#3b82f6', 0.2);
-    createCircle('fireball', parseFloat(effects.fireball_radius_km), '#f97316', 0.3);
-    createCircle('crater', parseFloat(effects.crater_diameter_km) / 2, '#ef4444', 0.5);
-  };
+  }, [activeRadar, effects, targetLat, targetLng]);
 
   const radarSections = [
     {

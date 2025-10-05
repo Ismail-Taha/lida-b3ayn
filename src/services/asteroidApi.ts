@@ -4,12 +4,70 @@ export interface Asteroid {
   diameter_km: number;
   velocity_kmh: number;
   miss_distance_km: number;
-  is_potentially_hazardous: boolean;
   close_approach_date: string;
   absolute_magnitude: number;
   x: number;
   y: number;
   z: number;
+}
+
+interface NeoDiameter {
+  estimated_diameter_min: number;
+  estimated_diameter_max: number;
+}
+
+interface NeoApproachData {
+  close_approach_date: string;
+  miss_distance: { kilometers: string };
+  relative_velocity: { kilometers_per_hour: string };
+}
+
+interface NeoObject {
+  id: string;
+  name: string;
+  absolute_magnitude_h: number;
+  estimated_diameter: { kilometers: NeoDiameter };
+  close_approach_data: NeoApproachData[];
+}
+
+interface NeoFeedResponse {
+  near_earth_objects: Record<string, NeoObject[]>;
+}
+
+export interface ImpactEffects {
+  energy_megatons: string;
+  impact_speed_mph: string;
+  average_occurrence_years: string;
+  crater_diameter_km: string;
+  crater_diameter_miles: string;
+  crater_depth_ft: string;
+  crater_casualties: string;
+  fireball_radius_km: string;
+  fireball_radius_miles: string;
+  fireball_deaths: string;
+  fireball_3rd_degree_burns: string;
+  fireball_2nd_degree_burns: string;
+  fireball_tree_ignition_miles: string;
+  shockwave_radius_km: string;
+  shockwave_radius_miles: string;
+  shockwave_decibels: string;
+  shockwave_deaths: string;
+  shockwave_lung_damage_miles: string;
+  shockwave_eardrum_rupture_miles: string;
+  shockwave_building_collapse_miles: string;
+  shockwave_home_collapse_miles: string;
+  wind_blast_radius_km: string;
+  wind_blast_radius_miles: string;
+  wind_peak_speed_mph: string;
+  wind_deaths: string;
+  wind_jupiter_storm_miles: string;
+  wind_complete_level_miles: string;
+  wind_ef5_tornado_miles: string;
+  wind_trees_down_miles: string;
+  earthquake_magnitude: string;
+  earthquake_deaths: string;
+  earthquake_felt_miles: string;
+  tsunami_height_m: string;
 }
 
 const NASA_API_KEY = 'poLEkSXMTfqHSgUCvk82Rm7XWmpWgHNru7jg9PRx'; // Get your own free key at https://api.nasa.gov
@@ -45,7 +103,6 @@ const generateMockAsteroids = (): Asteroid[] => {
     const diameter = 0.05 + Math.random() * 2.5;
     const velocity = 20000 + Math.random() * 80000;
     const missDistance = 1000000 + Math.random() * 50000000;
-    const isHazardous = Math.random() > 0.85;
 
     const date = new Date();
     date.setDate(date.getDate() + Math.floor(Math.random() * 30));
@@ -56,7 +113,6 @@ const generateMockAsteroids = (): Asteroid[] => {
       diameter_km: diameter,
       velocity_kmh: velocity,
       miss_distance_km: missDistance,
-      is_potentially_hazardous: isHazardous,
       close_approach_date: date.toISOString().split('T')[0],
       absolute_magnitude: 18 + Math.random() * 10,
       x: Math.sin(angle1) * Math.cos(angle2) * distance,
@@ -85,12 +141,15 @@ export const fetchNearEarthAsteroids = async (): Promise<Asteroid[]> => {
       throw new Error('Failed to fetch asteroid data');
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as NeoFeedResponse;
     const asteroids: Asteroid[] = [];
 
     Object.keys(data.near_earth_objects).forEach((date) => {
-      data.near_earth_objects[date].forEach((neo: any) => {
+      data.near_earth_objects[date].forEach((neo) => {
         const closeApproach = neo.close_approach_data[0];
+        if (!closeApproach) {
+          return;
+        }
         const diameter = neo.estimated_diameter.kilometers;
 
         // Calculate 3D position based on miss distance and random positioning
@@ -107,7 +166,6 @@ export const fetchNearEarthAsteroids = async (): Promise<Asteroid[]> => {
           diameter_km: (diameter.estimated_diameter_min + diameter.estimated_diameter_max) / 2,
           velocity_kmh: parseFloat(closeApproach.relative_velocity.kilometers_per_hour),
           miss_distance_km: distance,
-          is_potentially_hazardous: neo.is_potentially_hazardous_asteroid,
           close_approach_date: closeApproach.close_approach_date,
           absolute_magnitude: neo.absolute_magnitude_h,
           x: Math.sin(angle1) * Math.cos(angle2) * scaledDistance,
@@ -125,7 +183,10 @@ export const fetchNearEarthAsteroids = async (): Promise<Asteroid[]> => {
   }
 };
 
-export const calculateImpactEffects = (asteroid: Asteroid, targetLocation?: { lat: number; lng: number }) => {
+export const calculateImpactEffects = (
+  asteroid: Asteroid,
+  targetLocation?: { lat: number; lng: number }
+): ImpactEffects => {
   const energy = (0.5 * (asteroid.diameter_km ** 3) * (asteroid.velocity_kmh / 3600) ** 2) / 1000;
   const craterDiameter = asteroid.diameter_km * 20;
   const craterDepth = craterDiameter * 0.3;

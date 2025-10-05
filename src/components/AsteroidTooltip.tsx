@@ -1,5 +1,5 @@
 import { Asteroid } from '@/services/asteroidApi';
-import { AlertTriangle, TrendingUp, Target } from 'lucide-react';
+import { TrendingUp, Target } from 'lucide-react';
 
 interface AsteroidTooltipProps {
   asteroid: Asteroid | null;
@@ -18,9 +18,6 @@ export const AsteroidTooltip = ({ asteroid, position }: AsteroidTooltipProps) =>
       }}
     >
       <div className="flex items-start gap-3">
-        {asteroid.is_potentially_hazardous && (
-          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 animate-pulse-glow" />
-        )}
         <div className="space-y-2 flex-1">
           <h3 className="font-bold text-primary text-glow">{asteroid.name}</h3>
           
@@ -55,13 +52,12 @@ export const AsteroidTooltip = ({ asteroid, position }: AsteroidTooltipProps) =>
               </span>
             </div>
             
-            {asteroid.is_potentially_hazardous && (
-              <div className="mt-2 pt-2 border-t border-destructive/30">
-                <span className="text-destructive font-medium text-xs">
-                  ⚠ POTENTIALLY HAZARDOUS
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Absolute Magnitude:</span>
+              <span className="text-foreground font-medium">
+                {asteroid.absolute_magnitude.toFixed(2)} H
+              </span>
+            </div>
           </div>
         </div>
       </div>
