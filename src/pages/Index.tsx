@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Satellite, Play, Search } from 'lucide-react';
+import { Loader2, Satellite, Play, Search, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import spaceBackground from '@/assets/space-background.jpg';
 
@@ -22,6 +23,7 @@ const Index = () => {
     sizeRange: [0, 10] as [number, number],
     velocityRange: [0, 100000] as [number, number],
   });
+  const [maxAsteroids, setMaxAsteroids] = useState(30);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchName, setSearchName] = useState('');
   const [searchSizeRange, setSearchSizeRange] = useState<[number, number]>([0, 10]);
@@ -36,6 +38,7 @@ const Index = () => {
     try {
       const data = await fetchNearEarthAsteroids();
       setAsteroids(data);
+      setMaxAsteroids((prev) => Math.min(prev, data.length));
       toast.success(`Loaded ${data.length} near-Earth asteroids`);
     } catch (error) {
       toast.error('Failed to load asteroid data');
@@ -85,9 +88,19 @@ const Index = () => {
     });
   }, [asteroids, diameterRange, velocityRange]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    setMousePosition({ x: e.clientX, y: e.clientY });
-  };
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent) => {
+      if (isSimulationOpen) return;
+      const { clientX, clientY } = event;
+      setMousePosition((prev) => {
+        if (prev.x === clientX && prev.y === clientY) {
+          return prev;
+        }
+        return { x: clientX, y: clientY };
+      });
+    },
+    [isSimulationOpen]
+  );
 
   const handleAsteroidClick = (asteroid: Asteroid) => {
     setSelectedAsteroid(asteroid);
@@ -105,8 +118,10 @@ const Index = () => {
         asteroid.velocity_kmh <= filters.velocityRange[1];
 
       return withinSize && withinVelocity;
-    });
-  }, [asteroids, filters]);
+    })
+      .sort((a, b) => a.miss_distance_km - b.miss_distance_km)
+      .slice(0, maxAsteroids);
+  }, [asteroids, filters, maxAsteroids]);
 
   const resetFilters = useCallback(() => {
     setFilters({
@@ -147,6 +162,7 @@ const Index = () => {
   const handleSearchSelect = useCallback(
     (asteroid: Asteroid) => {
       setFilters((prev) => ({
+        ...prev,
         sizeRange: [
           Math.min(prev.sizeRange[0], asteroid.diameter_km),
           Math.max(prev.sizeRange[1], asteroid.diameter_km),
@@ -161,7 +177,7 @@ const Index = () => {
       setIsSimulationOpen(true);
       setIsSearchOpen(false);
     },
-    [setIsSimulationOpen]
+    [setIsSimulationOpen, setFilters, setSelectedAsteroid, setHoveredAsteroid, setIsSearchOpen]
   );
 
   useEffect(() => {
@@ -202,7 +218,20 @@ const Index = () => {
             </p>
           </div>
           
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-start">
+            <Button
+              onClick={handleSearchOpen}
+              className="flex items-center gap-2 bg-primary/80 hover:bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+            >
+              <Search className="w-4 h-4" />
+              Search Near
+            </Button>
+            <Button asChild className="flex items-center gap-2 bg-secondary/80 hover:bg-secondary text-secondary-foreground shadow-lg shadow-secondary/30">
+              <Link to="/impact-analysis">
+                <BookOpen className="w-4 h-4" />
+                Impact Science
+              </Link>
+            </Button>
             <div className="panel rounded-lg px-6 py-3">
               <p className="text-sm text-muted-foreground">Total Asteroids</p>
               <p className="text-3xl font-bold text-primary">{filteredAsteroids.length}</p>
@@ -211,12 +240,12 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-3 md:grid-cols-2">
-          <div className="panel rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+        <div className="mt-3 grid gap-2.5 lg:grid-cols-3 md:grid-cols-2">
+          <div className="panel rounded-lg p-2.5">
+            <div className="flex items-center justify-between mb-2">
               <div>
-                <p className="text-sm text-muted-foreground">Size Range</p>
-                <p className="text-lg font-semibold text-foreground">
+                <p className="text-xs text-muted-foreground">Size Range</p>
+                <p className="text-base font-semibold text-foreground">
                   {filters.sizeRange[0].toFixed(2)} km – {filters.sizeRange[1].toFixed(2)} km
                 </p>
               </div>
@@ -235,11 +264,11 @@ const Index = () => {
             />
           </div>
 
-          <div className="panel rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
+          <div className="panel rounded-lg p-2.5">
+            <div className="flex items-center justify-between mb-2">
               <div>
-                <p className="text-sm text-muted-foreground">Velocity Range</p>
-                <p className="text-lg font-semibold text-foreground">
+                <p className="text-xs text-muted-foreground">Velocity Range</p>
+                <p className="text-base font-semibold text-foreground">
                   {Math.round(filters.velocityRange[0]).toLocaleString()} km/h – {Math.round(filters.velocityRange[1]).toLocaleString()} km/h
                 </p>
               </div>
@@ -258,16 +287,25 @@ const Index = () => {
             />
           </div>
 
-          <div className="panel rounded-lg p-4 flex flex-col gap-4 justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Quick Actions</p>
-              <p className="text-lg font-semibold text-foreground">Reset Filters</p>
-              <p className="text-xs text-muted-foreground">
-                Restore the full asteroid catalog view
+          <div className="panel rounded-lg p-2.5 flex flex-col gap-3">
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">Visible Count</p>
+              <p className="text-base font-semibold text-foreground">
+                Showing {filteredAsteroids.length} of {asteroids.length}
+              </p>
+              <Slider
+                value={[Math.min(maxAsteroids, Math.max(asteroids.length, 1))]}
+                min={1}
+                max={Math.max(asteroids.length, 1)}
+                step={1}
+                onValueChange={(value) => setMaxAsteroids(value[0])}
+              />
+              <p className="text-xs text-muted-foreground leading-snug">
+                Limit the number of asteroids rendered in the 3D scene for performance tuning.
               </p>
             </div>
             <Button variant="outline" onClick={resetFilters}>
-              Reset
+              Reset Filters
             </Button>
           </div>
         </div>
@@ -325,6 +363,83 @@ const Index = () => {
           </p>
         </div>
       </div>
+
+      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Search Near-Earth Asteroids</DialogTitle>
+            <DialogDescription>
+              Filter by name, size, or velocity to quickly locate asteroids of interest.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Asteroid Name</p>
+              <Input
+                placeholder="Search by name"
+                value={searchName}
+                onChange={(event) => setSearchName(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Size Range (km)</p>
+                <p className="text-sm text-foreground font-medium">
+                  {searchSizeRange[0].toFixed(2)} km – {searchSizeRange[1].toFixed(2)} km
+                </p>
+              </div>
+              <Slider
+                value={searchSizeRange}
+                min={diameterRange[0]}
+                max={Math.max(diameterRange[1], diameterRange[0] + 0.01)}
+                step={0.01}
+                onValueChange={(value) => setSearchSizeRange(value as [number, number])}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Velocity Range (km/h)</p>
+                <p className="text-sm text-foreground font-medium">
+                  {Math.round(searchVelocityRange[0]).toLocaleString()} km/h – {Math.round(searchVelocityRange[1]).toLocaleString()} km/h
+                </p>
+              </div>
+              <Slider
+                value={searchVelocityRange}
+                min={velocityRange[0]}
+                max={Math.max(velocityRange[1], velocityRange[0] + 100)}
+                step={100}
+                onValueChange={(value) => setSearchVelocityRange(value as [number, number])}
+              />
+            </div>
+
+            <div className="border border-border rounded-lg max-h-64 overflow-y-auto divide-y divide-border">
+              {searchResults.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No asteroids match your search criteria.</p>
+              ) : (
+                searchResults.map((asteroid) => (
+                  <button
+                    key={asteroid.id}
+                    type="button"
+                    onClick={() => handleSearchSelect(asteroid)}
+                    className="w-full text-left p-4 hover:bg-muted/60 transition-colors"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{asteroid.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Size: {asteroid.diameter_km.toFixed(2)} km · Velocity: {Math.round(asteroid.velocity_kmh).toLocaleString()} km/h · Miss Distance: {asteroid.miss_distance_km.toLocaleString(undefined, { maximumFractionDigits: 0 })} km
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Close Approach: {new Date(asteroid.close_approach_date).toLocaleDateString()}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tooltip */}
       <AsteroidTooltip asteroid={hoveredAsteroid} position={mousePosition} />

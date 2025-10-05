@@ -15,6 +15,11 @@ const getSizeCategory = (diameterKm: number): SizeCategory => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+const getVisualScale = (diameterKm: number) => {
+  const normalized = Math.pow(clamp(diameterKm / 5, 0, 1), 0.7);
+  return clamp(0.12 + normalized * 0.45, 0.12, 0.7);
+};
+
 interface OrbitParameters {
   majorAxis: THREE.Vector3;
   minorAxis: THREE.Vector3;
@@ -286,7 +291,7 @@ const AsteroidMesh = ({
     };
   }, [textures]);
 
-  const size = Math.max(0.05, Math.min(asteroid.diameter_km / 10, 0.3));
+  const size = useMemo(() => getVisualScale(asteroid.diameter_km), [asteroid.diameter_km]);
   const surfaceColors: Record<SizeCategory, string> = {
     giant: '#f97316',
     large: '#38bdf8',
@@ -375,17 +380,18 @@ const AsteroidOrbit = ({ asteroid, isHovered }: { asteroid: Asteroid; isHovered:
 
   const sizeCategory = getSizeCategory(asteroid.diameter_km);
 
-  const orbitColors: Record<SizeCategory, { base: string; hover: string }> = {
-    giant: { base: '#fb923c', hover: '#fdba74' },
-    large: { base: '#38bdf8', hover: '#7dd3fc' },
-    medium: { base: '#a855f7', hover: '#c084fc' },
-    small: { base: '#facc15', hover: '#fde68a' },
+  const hoverColors: Record<SizeCategory, string> = {
+    giant: '#fdba74',
+    large: '#7dd3fc',
+    medium: '#c084fc',
+    small: '#fde68a',
   };
 
-  const color = isHovered ? orbitColors[sizeCategory].hover : orbitColors[sizeCategory].base;
-  const opacity = isHovered ? 0.75 : 0.4;
-  const dashSize = isHovered ? 0.4 : 0.2;
-  const gapSize = isHovered ? 0.05 : 0.1;
+  const baseColor = '#6b7280';
+  const color = isHovered ? hoverColors[sizeCategory] : baseColor;
+  const opacity = isHovered ? 0.75 : 0.35;
+  const dashSize = isHovered ? 0.42 : 0.22;
+  const gapSize = isHovered ? 0.05 : 0.12;
 
   return (
     <Line

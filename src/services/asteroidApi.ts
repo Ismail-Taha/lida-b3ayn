@@ -175,7 +175,7 @@ export const fetchNearEarthAsteroids = async (): Promise<Asteroid[]> => {
       });
     });
 
-    return asteroids.slice(0, 50); // Limit to 50 asteroids for performance
+    return asteroids.slice(0, 100); // Limit to 100 asteroids for performance
   } catch (error) {
     console.error('Error fetching asteroids, using mock data:', error);
     // Return mock data when API fails (rate limit, network error, etc.)

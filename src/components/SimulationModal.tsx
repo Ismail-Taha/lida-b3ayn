@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Asteroid, calculateImpactEffects } from '@/services/asteroidApi';
 import { Flame, Waves, Activity, Target, Zap, Rocket, Globe } from 'lucide-react';
@@ -16,9 +16,12 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
   const [simulationPhase, setSimulationPhase] = useState<'preview' | 'targeting' | 'impact'>('preview');
   const [targetLocation, setTargetLocation] = useState<{ lat: number; lng: number } | null>(null);
   
-  if (!asteroid) return null;
+  const effects = useMemo(() => {
+    if (!asteroid) return null;
+    return calculateImpactEffects(asteroid, targetLocation || undefined);
+  }, [asteroid, targetLocation]);
 
-  const effects = calculateImpactEffects(asteroid, targetLocation || undefined);
+  if (!asteroid || !effects) return null;
 
   const handleLaunch = () => {
     setSimulationPhase('targeting');
@@ -59,7 +62,7 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl panel border-2 border-primary/50 glow-primary">
+      <DialogContent className="max-w-xl panel border-2 border-primary/50 glow-primary p-5 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-2xl text-primary text-glow flex items-center gap-2">
             <Globe className="w-6 h-6 animate-pulse-glow" />
@@ -70,7 +73,7 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
+        <div className="space-y-3 mt-3">
           {/* Asteroid Info */}
           <div className="panel rounded-lg p-4">
             <h3 className="text-lg font-semibold text-secondary mb-3">Asteroid Properties</h3>
@@ -93,68 +96,6 @@ export const SimulationModal = ({ asteroid, isOpen, onClose }: SimulationModalPr
                 <span className="text-muted-foreground text-sm">Absolute Magnitude</span>
                 <p className="text-foreground font-bold">{asteroid.absolute_magnitude.toFixed(2)} H</p>
               </div>
-            </div>
-          </div>
-
-          {/* Impact Effects */}
-          <div className="panel rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-destructive mb-3">Impact Effects</h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Zap className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">Energy Release</p>
-                  <p className="text-2xl font-bold text-primary">{effects.energy_megatons} Megatons</p>
-                  <p className="text-sm text-muted-foreground">TNT equivalent</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Target className="w-5 h-5 text-secondary flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">Crater Diameter</p>
-                  <p className="text-2xl font-bold text-secondary">{effects.crater_diameter_km} km</p>
-                  <p className="text-sm text-muted-foreground">Impact crater size</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Flame className="w-5 h-5 text-destructive flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">Fireball Radius</p>
-                  <p className="text-2xl font-bold text-destructive">{effects.fireball_radius_km} km</p>
-                  <p className="text-sm text-muted-foreground">Thermal radiation zone</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Activity className="w-5 h-5 text-accent flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">Shockwave Radius</p>
-                  <p className="text-2xl font-bold text-accent">{effects.shockwave_radius_km} km</p>
-                  <p className="text-sm text-muted-foreground">Overpressure damage zone</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Activity className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">Earthquake Magnitude</p>
-                  <p className="text-2xl font-bold text-primary">{effects.earthquake_magnitude}</p>
-                  <p className="text-sm text-muted-foreground">Richter scale equivalent</p>
-                </div>
-              </div>
-
-              {parseFloat(effects.tsunami_height_m) > 0 && (
-                <div className="flex items-start gap-3">
-                  <Waves className="w-5 h-5 text-secondary flex-shrink-0 mt-1" />
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">Tsunami Height</p>
-                    <p className="text-2xl font-bold text-secondary">{effects.tsunami_height_m} meters</p>
-                    <p className="text-sm text-muted-foreground">Coastal wave height</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
