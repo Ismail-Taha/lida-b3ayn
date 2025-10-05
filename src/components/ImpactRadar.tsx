@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Feature, Polygon, FeatureCollection } from 'geojson';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -72,6 +72,7 @@ export const ImpactRadar = ({
   const map = useRef<maplibregl.Map | null>(null);
   const updateRadarCirclesRef = useRef<() => void>(() => {});
   const [showExplosion, setShowExplosion] = useState(false);
+  const [explosionPosition, setExplosionPosition] = useState<{ x: number; y: number } | null>(null);
   const [activeRadar, setActiveRadar] = useState({
     crater: true,
     fireball: true,
@@ -82,6 +83,17 @@ export const ImpactRadar = ({
 
   const targetLat = targetLocation.lat;
   const targetLng = targetLocation.lng;
+
+  useEffect(() => {
+    setShowExplosion(false);
+    setExplosionPosition(null);
+  }, [targetLat, targetLng]);
+
+  const updateExplosionPosition = useCallback(() => {
+    if (!map.current) return;
+    const { x, y } = map.current.project([targetLng, targetLat]);
+    setExplosionPosition({ x, y });
+  }, [targetLat, targetLng]);
 
   useEffect(() => {
     updateRadarCirclesRef.current = () => {
@@ -251,21 +263,31 @@ export const ImpactRadar = ({
       } catch (error) {
         console.warn('Unable to tint base map background', error);
       }
-      setTimeout(() => setShowExplosion(true), 500);
+      updateExplosionPosition();
+      setShowExplosion(true);
       updateRadarCirclesRef.current();
     });
 
+    mapInstance.on('move', updateExplosionPosition);
+    mapInstance.on('resize', updateExplosionPosition);
+
     return () => {
+      mapInstance.off('move', updateExplosionPosition);
+      mapInstance.off('resize', updateExplosionPosition);
       mapInstance.remove();
       map.current = null;
     };
-  }, [targetLat, targetLng]);
+  }, [targetLat, targetLng, updateExplosionPosition]);
 
   useEffect(() => {
     if (map.current?.isStyleLoaded()) {
       updateRadarCirclesRef.current();
     }
   }, [activeRadar, asteroid.impact_angle_deg, asteroid.impact_azimuth_deg, effects, targetLat, targetLng]);
+
+  useEffect(() => {
+    updateExplosionPosition();
+  }, [updateExplosionPosition]);
 
   const radarSections = [
     {
@@ -341,9 +363,17 @@ export const ImpactRadar = ({
         <div ref={mapContainer} className="absolute inset-0" />
         
         {/* Explosion Animation */}
-        {showExplosion && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="explosion-animation">
+        {showExplosion && explosionPosition && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div
+              className="explosion-animation"
+              style={{
+                position: 'absolute',
+                left: `${explosionPosition.x}px`,
+                top: `${explosionPosition.y}px`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
               <div className="explosion-core" />
               <div className="explosion-ring" />
               <div className="explosion-shockwave" />
